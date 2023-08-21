@@ -4,6 +4,7 @@ from text_images.image_genration import process_image
 from text_music.music import generate_music
 from text_chart import chart
 
+
 from Transcript.Youtube_sub import mp4_sub_bp
 from Credits.Creditsassign import credit_bp
 from Login.models import db  # Assuming your database models are defined in 'models.py'
