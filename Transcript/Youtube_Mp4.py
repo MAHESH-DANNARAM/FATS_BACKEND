@@ -1,28 +1,30 @@
-from flask import Blueprint, request, jsonify
-from Common.Common import video2mp3,translate_to_en,translate_vtt
-import subprocess
+import whisper
+from subprocess import call
 
-video_downloader_bp = Blueprint('video_downloader', __name__)
 
-@video_downloader_bp.route('/download', methods=['POST'])
-def download_video():
-    data = request.get_json()
-    
-    if 'youtube_url' not in data:
-        return jsonify({'error': 'Missing youtube_url parameter'}), 400
-    
-    youtube_url = data['youtube_url']
-    output_file = 'Video.mp4'
-    
-    # Run yt-dlp command using subprocess
-    command = [
-        'yt-dlp', '-f', 'mp4', '--force-overwrites', '--no-warnings',
-        '--ignore-no-formats-error', '--restrict-filenames', '-o', output_file,
-        youtube_url
-    ]
-    
-    try:
-        subprocess.run(command, check=True)
-        return jsonify({'message': 'Download successful'}), 200
-    except subprocess.CalledProcessError:
-        return jsonify({'error': 'Download failed'}), 500
+def process_youtube_video(youtube_url, MODEL_SIZE, TARGET_LANG_CODE, SUBTITLE_TYPE):
+    # Load the Whisper ASR model
+    model = whisper.load_model(MODEL_SIZE)
+
+    # Define the output file name for the downloaded video
+    OutputFile = 'Video.mp4'
+
+    # Download the video using yt-dlp
+    call(
+        f'yt-dlp -f "mp4" --force-overwrites --no-warnings --ignore-no-formats-error --restrict-filenames -o {OutputFile} {youtube_url}',
+        shell=True)
+
+    # Process the downloaded video further
+    # ... Add your code for additional processing here ...
+
+    return "Video processing complete."
+
+
+# Example usage (you can call this function from another script):
+if __name__ == "__main__":
+    MODEL_SIZE = 'medium'
+    youtube_url = 'www.youtube.com/watch?v=g_9rPvbENUw'
+    TARGET_LANG_CODE = 'de'
+    SUBTITLE_TYPE = 'vtt'
+
+    process_youtube_video(youtube_url, MODEL_SIZE, TARGET_LANG_CODE, SUBTITLE_TYPE)

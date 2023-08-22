@@ -1,9 +1,13 @@
+import whisper
 import os
 import subprocess
-from flask import Blueprint, request, jsonify
-from Common.Common import video2mp3,translate_to_en,translate_vtt
+from deep_translator import GoogleTranslator
+from base64 import b64encode
+from IPython.display import Audio
+from whisper.utils import get_writer
+from subprocess import call
+from IPython.display import Audio
 
-mp4_sub_bp = Blueprint('mp4_sub', __name__)
 
 def video2mp3(video_file, output_ext="mp3"):
     # convert to mp3
@@ -13,27 +17,46 @@ def video2mp3(video_file, output_ext="mp3"):
                     stderr=subprocess.STDOUT)
     return f"{filename}.{output_ext}"
 
-@mp4_sub_bp.route('/convert', methods=['POST'])
-def convert_and_generate_subtitles():
-    data = request.get_json()
 
-    youtube_url = data['youtube_url']
-    TARGET_LANG_CODE = data['target_lang_code']
-    SUBTITLE_TYPE = data['subtitle_type']
+def translate_to_en(audio, audio_file=None):
+    model = whisper.load_model("medium")  # Adjust the model loading part
+    options = dict(beam_size=5, best_of=5)
+    translate_options = dict(task="translate", **options)
+    result = model.transcribe(audio_file, **translate_options)
+    return result
+
+
+def translate_vtt(target, file_subs):
+    translator: GoogleTranslator = GoogleTranslator(source='auto', target=target)
+
+    with open(os.path.join('.', file_subs), "r+") as file:
+        lines = file.readlines()
+        for i, line in enumerate(lines):
+            if i % 3 == 0 and line.strip() != 'WEBVTT':
+                # Translate the line
+                translated_line = translator.translate(line.strip())
+                # Replace
+                lines[i] = translated_line + '\n'
+                print(lines[i])
+        file.seek(0)
+        file.writelines(lines)
+
+
+def process_youtube_subtitles(youtube_url, TARGET_LANG_CODE, SUBTITLE_TYPE):
+    MODEL_SIZE = 'medium'  # Change to the desired model size
+
+    model = whisper.load_model(MODEL_SIZE)
 
     OutputFile = 'Video.mp4'
-    command = [
-        'yt-dlp', '-f', 'mp4', '--force-overwrites', '--no-warnings',
-        '--ignore-no-formats-error', '--restrict-filenames', '-o', OutputFile,
-        youtube_url
-    ]
-    try:
-        subprocess.run(command, check=True)
-    except subprocess.CalledProcessError:
-        return jsonify({'error': 'Video download failed'}), 500
+    call(
+        f'yt-dlp -f "mp4" --force-overwrites --no-warnings --ignore-no-formats-error --restrict-filenames -o {OutputFile} {youtube_url}',
+        shell=True)
 
+    # Audio file
     audio_file = video2mp3(OutputFile)
-    # Translate transcription to en (replace with your actual translation function)
+    Audio(audio_file, rate=44100)
+
+    # Translate transcription to en
     result_en = translate_to_en(audio_file)
 
     # Make subtitles
@@ -42,7 +65,7 @@ def convert_and_generate_subtitles():
         "max_line_count": 1,
         "highlight_words": 12
     }
-    output_writer = get_writer(SUBTITLE_TYPE, '.')  # "/content"
+    output_writer = get_writer(SUBTITLE_TYPE, '.')
     output_writer(result_en, 'subtitles_en', options)
     subtitles_ = f'subtitles_en.{SUBTITLE_TYPE}'
 
@@ -51,9 +74,9 @@ def convert_and_generate_subtitles():
         try:
             translate_vtt(TARGET_LANG_CODE, subtitles_)
         except:
-            print(f'Invalid TARGET_LANG_CODE: {TARGET_LANG_CODE}. Generating subtitles in English')
+            print(
+                f'Invalid TARGET_LANG_CODE: {TARGET_LANG_CODE}. or use subtitle type vtt. Generating subtitles in English')
     else:
         print('Generating subtitles in English')
 
-    # Return the result as a JSON response
-    return jsonify({'message': 'Subtitles generated successfully'}), 200
+    return subtitles_
