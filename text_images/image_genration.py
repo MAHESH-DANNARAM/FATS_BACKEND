@@ -5,7 +5,7 @@ import torch
 # Initialize the Diffuser pipeline and configuration
 login()
 pipe = StableDiffusionXLPipeline.from_pretrained(
-    "stabilityai/stable-diffusion-xl-base-0.9", torch_dtype=torch.float16, variant="fp16", use_safetensors=True
+    "stabilityai/stable-diffusion-xl-base-0.9", torch_dtype=torch.float16, variant="fp32", use_safetensors=True
 )
 pipe.to("cuda")
 config = pipe.unet.config
