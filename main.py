@@ -4,11 +4,15 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from tempfile import NamedTemporaryFile
 from IPython.display import Audio, display, HTML
+from sqlalchemy.orm import Session
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
+from Login.login import init_db, create_user, UserCreate
 from text_images.image_genration import process_image
 from text_music.music import generate_music
 from text_chart import chart
-from Login.login import init_db, create_user, UserCreate
+
 from Transcript.Youtube_video_sub import process_video
 from Transcript.Youtube_sub import process_youtube_subtitles
 from Transcript.Youtube_Mp4 import process_youtube_video
@@ -16,13 +20,16 @@ from Transcript.Mp4_Mp3 import process_video_to_audio  # Import the function fro
 from Transcript.Mp4_video_sub import process_video_with_subtitles
 from Transcript.Mp4_sub import process_video_and_return_subtitles
 from Transcript.Mp3_sub import generate_and_translate_subtitles_route
+from text_voice import text_voice
+from voice_clone import voice_clone
 
-from Credits.Creditsassign import credit_bp
+#
+# from Credits.Creditsassign import credit_bp
 
 app = FastAPI()
 
-drivers = 'SQL+Server'
-server = 'DESKTOP-7ONCVVN\\MAHESH'
+drivers = 'ODBC+Driver+17+for+SQL+Server'
+server = 'DESKTOP-8HO87CF\\MAHESH'
 database = 'LOGIN'
 port = '1433'
 id = 'sa'
@@ -31,8 +38,9 @@ database_url = f'mssql+pyodbc://{id}:{password}@{server}/{database}?driver={driv
 
 db = init_db(database_url)
 
+
 # Include routers for different parts of your application
-app.include_router(credit_bp, prefix="/api")
+# app.include_router(credit_bp, prefix="/api")
 
 
 # Call the process_image function from image_generation.py
@@ -42,7 +50,9 @@ def call_process_image(prompt: str):
     return image_result
 
 
-# Call the generate_music function from image_generation.py
+#
+#
+# # Call the generate_music function from image_generation.py
 @app.post("/api/music_gen/generate_music")
 def call_generate_music(prompts: list, duration: int):
     music_response = generate_music(prompts, duration)  # Call the generate_music function
@@ -56,8 +66,8 @@ def call_generate_pie_chart(instruction: str):
     return {"result": generated_text}
 
 
-@app.post("/api/create_user")
-def call_create_user(user: UserCreate):
+@app.post("/api/users/")
+def create_user_endpoint(user: UserCreate):
     created_user = create_user(db, user)
     return created_user
 
@@ -172,6 +182,26 @@ async def process_audio_and_get_subtitles_route(
         return response
     except Exception as e:
         return {"error": str(e)}
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+
+@app.post("/convert/")
+async def convert(voice_id: str = Form(...), text: str = Form(...)):
+    result = await text_voice.convert_text_to_speech(voice_id, text)
+    return result
+
+
+@app.post("/clone_voice/")
+async def clone_voice(
+        name: str = Form(...),
+        labels: str = Form(...),
+        description: str = Form(...),
+        audio_files: list[UploadFile] = File(...)
+):
+    return await voice_clone.clone_voice(name, labels, description, audio_files)
 
 
 if __name__ == '__main__':
