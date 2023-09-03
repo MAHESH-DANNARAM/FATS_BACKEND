@@ -1,63 +1,55 @@
-from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session
-from urllib.parse import quote_plus
+import pymongo
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, UploadFile, File, Form
 
-# Database configuration
-server = 'DESKTOP-8HO87CF\\MAHESH'
-database = 'LOGIN'
-id = 'sa'
-password = 'Mahesh@divya'
-drivers = 'SQL Server'
+uri = 'mongodb+srv://maheshdmah:Mahesh%40divya@cluster0.36cpwss.mongodb.net/?retryWrites=true&w=majority'
 
-# URL encode the password
-encoded_password = quote_plus(password)
-
-# Create the database URL
-database_url = f'mssql+pyodbc://{id}:{encoded_password}@{server}/{database}?driver={drivers}'
-
-# Create the SQLAlchemy engine
-engine = create_engine(database_url)
-
-# Initialize the base class for declarative models
-Base = declarative_base()
+app = FastAPI()
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+# Replace with your frontend URL
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-# Define the User model
-class User(Base):
-    __tablename__ = 'users'
+def insert_user_data(first_name, last_name, username, phone_number, email):
+    try:
+        # Connect to the MongoDB server
+        client = pymongo.MongoClient(uri)  # Replace with your MongoDB connection URL
 
-    id = Column(Integer, primary_key=True, index=True)
-    first_name = Column(String)
-    last_name = Column(String)
-    username = Column(String, unique=True)
-    phone_number = Column(String)
-    email = Column(String, unique=True)
+        # Select the database
+        db = client['LOGIN']  # Replace 'LOGIN' with your desired database name
 
+        # Select the collection (analogous to a table in SQL)
+        collection = db['users']
 
-# Create the session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        # Create a user document
+        user_data = {
+            'first_name': first_name,
+            'last_name': last_name,
+            'username': username,
+            'phone_number': phone_number,
+            'email': email
+        }
 
+        # Insert the user data into the collection
+        result = collection.insert_one(user_data)
 
-def init_db(database_url):
-    engine = create_engine(database_url, echo=True)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return SessionLocal()
+        # Close the MongoDB client
+        client.close()
 
+        if result.acknowledged:
+            return "Data inserted successfully!"
+        else:
+            return "Error inserting user data."
 
-class UserCreate(BaseModel):
-    first_name: str
-    last_name: str
-    username: str
-    phone_number: str
-    email: str
-
-
-def create_user(db: Session, user: UserCreate):
-    db_user = User(**user.dict())
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    return db_user
+    except Exception as e:
+        return "Error inserting user: " + str(e)
